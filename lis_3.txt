@@ -1,0 +1,227 @@
+1 Wyœwietliæ numery zleceñ, w ramach których pobierana by³a krew grupy ‘AB’ (wykorzystaæ wy³¹cznie z³¹czenia relacji).
+
+select distinct D1.nr_zlecenia "Zlecenie AB"
+from Donacje D1 JOIN Dawcy D2 on D1.pseudo_dawcy  = D2.pseudo_dawcy
+where D2.grupa_krwi = 'AB'
+order by D1.nr_zlecenia;
+
+
+2Przedstawiæ pseudonimy wampirów wraz z ich p³ci¹ oraz pseudonimy i p³cie ich szefów.
+
+select W1.pseudo_wampira "Pseudo wampira", W1.plec_wampira Plec, nvl(W1.pseudo_szefa, ' ') "Pseudo Szefa", nvl(W2.plec_wampira, ' ') "Plec szefa"
+from Wampiry W1 left join Wampiry W2 on W1.pseudo_szefa=W2.pseudo_wampira;
+
+
+3 Okreœliæ pseudonimy i p³cie dawców o wczeœniejszych rocznikach ni¿ rocznik dawcy o pseudonimie Slodka.
+
+select D1.pseudo_dawcy "Dawca przed Slodka", D1.plec_dawcy "Plec"
+from Dawcy D1 JOIN Dawcy D2 on D1.rocznik_dawcy < D2.rocznik_dawcy
+where D2.pseudo_dawcy = 'Slodka'
+
+
+4 Okreœliæ uporz¹dkowane alfabetycznie pseudonimy dawców, od których pobrano w sumie powy¿ej 1000 ml, miêdzy 700 a 1000 ml i poni¿ej 700 ml. Zastosowaæ po³¹czenie pionowe relacji.
+
+select pseudo_dawcy "Pseudonim", 'Ponizej 700' Pobor
+from donacje
+group by pseudo_dawcy
+having sum(ilosc_krwi) < 700
+union all
+select pseudo_dawcy "Pseudonim", 'Miedzy 700 a 1000' Pobor
+from donacje
+group by pseudo_dawcy
+having sum(ilosc_krwi) between 700 and 1000
+union all
+select pseudo_dawcy "Pseudonim", 'Powyzej 1000' Pobor
+from donacje
+group by pseudo_dawcy
+having sum(ilosc_krwi) > 1000
+order by 1;
+
+
+5 ZnaleŸæ wampiry, które znaj¹ tyle samo jêzyków obcych co posiadaj¹ sprawnoœci.
+
+select Z.pseudo_wampira Wampir, count(*) Liczba
+from sprawnosci_w Z
+group by pseudo_wampira
+having count(*) = (select count(*) Liczba
+from jezyki_obce_w
+where pseudo_wampira = Z.pseudo_wampira
+group by pseudo_wampira);
+
+
+6 Wyœwietliæ numery zleceñ i daty ich wykonania, w ramach których pobierana by³a krew grupy ‘AB’ (wykorzystaæ wy³¹cznie podzapytania).
+
+select nr_zlecenia "Zlecenie AB", data_oddania "Data wykonania"
+from donacje
+where pseudo_dawcy =any (select pseudo_dawcy from dawcy where grupa_krwi = 'AB')
+order by nr_zlecenia;
+
+
+7 Okreœliæ ile wampirów w ka¿dej z p³ci zna przynajmniej dwa jêzyki obce (wykorzystaæ podzapytanie).
+
+select W.plec_wampira Plec, count(*) "Liczba lingwistow"
+from wampiry W
+where (select count(*) from jezyki_obce_w where pseudo_wampira = W.pseudo_wampira group by pseudo_wampira) >= 2
+group by W.plec_wampira;
+
+
+8 Wyœwietliæ uporz¹dkowane malej¹co trzy najwiêksze objêtoœci donacji wraz z pseudonimami dawców, od których donacje pochodz¹. Zadanie wykonaæ na dwa sposoby: 
+
+a z wykorzystaniem podzapytania skorelowanego,
+
+select D.ilosc_krwi Objetosc, D.pseudo_dawcy Dawca
+from donacje D
+where 3 > (select count(disctinct pseudo_dawcy) from donacje where ilosc_krwi > D.ilosc_krwi)
+order by ilosc_krwi desc;
+
+b z wykorzystaniem z³¹czenia i grupowania.
+
+select D.ilosc_krwi, D.pseudo_dawcy
+from donacje D JOIN donacje DD on D.ilosc_krwi <= DD.ilosc_krwi
+group by D.ilosc_krwi, D.pseudo_dawcy
+having count(distinct DD.ilosc_krwi) < 4;
+
+
+9 Okreœliæ pseudonimy i grupy krwi dawców, od których pobiera³y krew wampiry znaj¹ce jêzyk polski. Zadanie rozwi¹zaæ na dwa sposoby: wykorzystuj¹c wy³¹cznie podzapytania oraz wy³¹cznie z³¹czenia relacji. W tym drugim przypadku wyœwietliæ dodatkowo pseudonimy wampirów pobieraj¹cych krew. Wyjaœniæ dlaczego w pierwszym przypadku by³o to niemo¿liwe. Wyjaœniæ tak¿e ró¿nicê w wyniku.
+
+a Rozwi¹zanie z wykorzystaniem wy³¹cznie podzapytañ
+
+select pseudo_dawcy Dawca, grupa_krwi Grupa
+from Dawcy
+where pseudo_dawcy IN (select pseudo_dawcy from donacje where nr_zlecenia IN 
+                      (select nr_zlecenia from zlecenia where pseudo_wampira IN 
+                      (select pseudo_wampira from jezyki_obce_w where jezyk_obcy = 'polski')));
+
+b Rozwi¹zanie z wykorzystaniem wy³¹cznie z³¹czeñ relacji
+
+select distinct D.pseudo_dawcy Dawcy, D.grupa_krwi Grupa, Z.pseudo_wampira
+from Dawcy D JOIN donacje DON on D.pseudo_dawcy = DON.pseudo_dawcy 
+             JOIN zlecenia Z on DON.nr_zlecenia = Z.nr_zlecenia
+             JOIN jezyki_obce_w JOW on Z.pseudo_wampira = JOW.pseudo_wampira
+where jezyk_obcy = 'polski'
+order by D.pseudo_dawcy;
+
+
+10 Sprawdziæ, czy istnia³ rok, w którym do Rodziny wst¹pi³ wiêcej ni¿ jeden wampir. Wyœwietliæ lata wst¹pienia i  pseudonimy takich wampirów (wykorzystaæ podzapytanie).
+
+select pseudo_wampira, EXTRACT(year FROM wampir_w_rodzinie) "Rok wstapienia"
+from wampiry D
+where 1 <  (select count(pseudo_wampira) from wampiry 
+            where ROUND(MONTHS_BETWEEN(D.wampir_w_rodzinie,wampir_w_rodzinie)/12,0) = 0);
+
+
+11 Okreœliæ lata, dla których liczba wst¹pieñ do Rodziny jest najbli¿sza (od góry i od do³u) œredniej liczbie wst¹pieñ  dla wszystkich lat (œrednia z wartoœci okreœlaj¹cych liczbê wst¹pieñ w poszczególnych latach).
+
+select to_char(EXTRACT(year FROM wampir_w_rodzinie)) rok, count(*) "liczba wstapien"
+from wampiry
+group by EXTRACT(year FROM wampir_w_rodzinie)
+having count(*) = (select max(count(*)) 
+                   from wampiry 
+                   group by EXTRACT(year FROM wampir_w_rodzinie) 
+                   having count(*) < (select avg(srednia)
+                                      from (select avg(count(*)) srednia 
+                                      from wampiry 
+                                      group by EXTRACT(year FROM wampir_w_rodzinie))))
+union all
+select 'Srednia' "rok", avg(srednia) "liczba wstapien"
+from (select avg(count(*)) srednia 
+      from wampiry 
+      group by EXTRACT(year FROM wampir_w_rodzinie))
+union all
+select to_char(EXTRACT(year FROM wampir_w_rodzinie)) rok, count(*) "liczba wstapien"
+from wampiry
+group by EXTRACT(year FROM wampir_w_rodzinie)
+having count(*) = (select min(count(*)) 
+                   from wampiry 
+                   group by EXTRACT(year FROM wampir_w_rodzinie) 
+                   having count(*) > (select avg(srednia)
+                                      from (select avg(count(*)) srednia 
+                                      from wampiry 
+                                      group by EXTRACT(year FROM wampir_w_rodzinie))))
+order by 2;
+
+
+12 Dla dawców p³ci ¿eñskiej wyznaczyæ nastêpuj¹ce dane: pseudonim dawcy, grupê krwi, sumaryczn¹ objêtoœæ oddanej krwi, œrednia sumaryczna objêtoœæ oddanej krwi w ramach grupy krwi dawcy. Zadanie rozwi¹zaæ na dwa sposoby:
+
+a wykorzystuj¹c podzapytania tylko w klauzurze SELECT,
+
+select D.pseudo_dawcy Dawczyni, 
+       D.grupa_krwi "Grupa krwi", 
+       (select sum(ilosc_krwi) from donacje where pseudo_dawcy = D.pseudo_dawcy) "W sumie oddala",
+       (select round(avg(b))
+        from(select sum(ilosc_krwi) b
+             from donacje Do 
+             where (select grupa_krwi 
+                    from dawcy 
+                    where pseudo_dawcy = Do.pseudo_dawcy) = D.grupa_krwi
+                          and
+                         (select plec_dawcy 
+                         from dawcy 
+                         where pseudo_dawcy = Do.pseudo_dawcy) = 'K'
+                         group by pseudo_dawcy)) "Srednia suma w jej grupie"
+from dawcy D
+where plec_dawcy = 'K'
+order by 2 desc,1;
+
+b wykorzystuj¹c podzapytania tylko w klauzurze FROM.
+
+select D.Dawczyni, D."Grupa krwi", DD."W sumie oddala", "Srednia suma w jej grupie"
+from (select pseudo_dawcy Dawczyni, grupa_krwi "Grupa krwi" 
+      from dawcy 
+      where plec_dawcy ='K') D JOIN 
+     (select pseudo_dawcy, sum(ilosc_krwi) "W sumie oddala" 
+      from donacje 
+      group by pseudo_dawcy) DD ON Dawczyni = pseudo_dawcy JOIN
+     (select grupa_krwi a, round(avg(c)) "Srednia suma w jej grupie"
+      from (select grupa_krwi, sum(ilosc_krwi) c 
+            from dawcy D join donacje Do on D.pseudo_dawcy = Do.pseudo_dawcy 
+            where plec_dawcy = 'K' 
+            group by D.pseudo_dawcy, grupa_krwi) 
+      group by grupa_krwi) DDD on a = "Grupa krwi"   
+order by 2 desc,1;
+
+
+13 Wyœwietliæ pseudonimy wampirów p³ci mêskiej nie wykonuj¹cych do tej pory zleceñ, którzy pili krew dawców p³ci ¿eñskiej o sumarycznym dotychczasowym oddaniu powy¿ej 800 ml. Wyœwietliæ dodatkowo pseudonimy tych dawców oraz sumaryczn¹ wypit¹ przez wampira objêtoœæ krwi. W rozwi¹zaniu zadania wykorzystaæ ³¹czenie relacji, podzapytanie (nie w klauzurze FROM lub SELECT) i grupowanie. Nie stosowaæ zmiennych, perspektyw i operatorów zbiorowych.
+
+select W.pseudo_wampira "Wampir", Da.pseudo_dawcy "Zrodlo", sum(ilosc_krwi) "Wypil ml" 
+from wampiry W LEFT JOIN zlecenia Z on W.pseudo_wampira = Z.pseudo_wampira JOIN donacje D on W.pseudo_wampira = D.pseudo_wampira JOIN dawcy Da on D.pseudo_dawcy = Da.pseudo_dawcy
+where Z.nr_zlecenia is null and plec_wampira = 'M' and plec_dawcy = 'K' and (select sum(ilosc_krwi) from donacje where pseudo_dawcy = Da.pseudo_dawcy) > 800
+group by W.pseudo_wampira, Da.pseudo_dawcy;
+
+
+14 "Odm³odziæ” wszystkich dawców grupy krwi 0 o piêæ lat. Wyœwietliæ ich roczniki przed zmian¹, dokonaæ zmiany, wyœwietliæ roczniki po zmianie a nastêpnie wycofaæ zmiany.
+
+select pseudo_dawcy Dawca, rocznik_dawcy Rocznik
+from dawcy
+where grupa_krwi = '0';
+
+update dawcy 
+set rocznik_dawcy = rocznik_dawcy + 5
+where grupa_krwi = '0';
+
+select pseudo_dawcy Dawca, rocznik_dawcy Rocznik
+from dawcy
+where grupa_krwi = '0';
+
+update dawcy 
+set rocznik_dawcy = rocznik_dawcy - 5
+where grupa_krwi = '0';
+
+
+15 Dla wampirów p³ci mêskiej wyœwietliæ, w kolejnoœci hierarchii, pseudonimy wszystkich ich szefów.
+
+select W1.pseudo_wampira "PSEUDO WAMPIRA", nvl(W1.pseudo_szefa, ' ') "PSEUDO SZEFA", nvl(W2.pseudo_szefa, ' ') "PSEUDO SZEFA SZEFA"
+from wampiry W1 LEFT JOIN wampiry W2 on W1.pseudo_szefa = W2.pseudo_wampira
+where W1.plec_wampira = 'M'
+
+
+16 Zdefiniowaæ zapytanie, które zwróci raport okreœlaj¹cy sumaryczne spo¿ycie krwi z Banku Krwi podw³adnych ka¿dego szefa z podzia³em na p³cie podw³adnych.
+
+select plec_wampira "plec podwladnych", sum(pod_drakula) "pod drakula", sum(pod_opojem), sum(pod_wickiem) "pod wickiem"
+from (select decode(W.plec_wampira, 'M', 'Wampiry', 'Wampirki') plec_wampira,
+             decode(W.pseudo_szefa, 'Drakula', sum(D.ilosc_krwi), 0) pod_drakula,
+             decode(W.pseudo_szefa, 'Opoj', sum(D.ilosc_krwi), 0) pod_opojem,
+             decode(W.pseudo_szefa, 'Wicek', sum(D.ilosc_krwi), 0) pod_wickiem 
+             FROM Wampiry W JOIN Donacje D on W.pseudo_wampira = D.pseudo_wampira 
+             group by decode(w.plec_wampira, 'M', 'Wampiry', 'Wampirki'), W.pseudo_szefa)
+             group by plec_wampira
